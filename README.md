@@ -1,133 +1,112 @@
 # Oracle VPS AI Agent
 
-A self-hosted DevOps and coding agent designed to run directly on an Oracle VPS.
+A self-hosted AI control plane for the user's Oracle VPS. It can inspect projects, Docker services, Git repositories, system state, and durable agent memory, then create safe coding proposals. The same runtime is available through a mobile-friendly web UI and a terminal.
 
-The agent uses Gemini for reasoning and tool selection, while local Python code enforces the safety boundary around filesystem edits, shell commands, Docker actions, proposals, backups, and verification.
+## AI
 
-## What it is
+The default AI provider is OpenRouter's OpenAI-compatible API using the free `openrouter/free` router. OpenRouter currently provides free model variants and the free router filters for capabilities such as tool calling. The provider is replaceable through `OPENROUTER_MODEL`.
 
-This is not an unrestricted shell chatbot.
+No AI software is installed on the user's PC. The agent runs on the VPS and calls the cloud model from the VPS.
 
-The intended workflow is:
+## Architecture
 
-1. Investigate — gather a focused, read-only snapshot of the relevant project or service.
-2. Inspect — read only the additional files/evidence needed.
-3. Diagnose — reason about the evidence.
-4. Propose — create an exact coding proposal containing the intended old/new text.
-5. Approve — a human explicitly approves the proposal.
-6. Apply — the local executor applies only the exact stored edit.
-7. Verify — the changed project is verified with a separate human approval.
-8. Report — the agent clearly distinguishes proposal, edit, and verification results.
+    Phone / Browser
+          |
+          v
+      FastAPI server
+          |
+          v
+      AgentRuntime
+          |
+          +---- OpenRouter
+          |
+          +---- Tool registry
+          |       |
+          |       +-- VPS/system
+          |       +-- Projects/Git
+          |       +-- Docker
+          |       +-- Files
+          |       +-- Memory
+          |       +-- Proposals
+          |
+          +---- Approval API
+                  |
+                  +-- apply approved coding proposal
+                  +-- restart approved container
 
-Already-approved proposal requests are routed locally so Gemini cannot reinterpret an approved edit.
+The model never executes commands itself. It requests a tool call; the local runtime validates and executes the tool, then returns the result to the model.
 
 ## Current capabilities
 
-- System information
-- Directory listing
-- Secret-filtered text-file reading
-- Project structure detection
-- Focused project investigation: layout, project type, Git status/branch/diff
-- Source-file discovery
+- Authenticated mobile web UI
+- OpenRouter tool-calling loop
+- VPS system information
+- Automatic Git-project discovery under configured workspace roots
+- Directory and redacted text-file inspection
+- Strict read-only shell commands
 - Git status, branch, log, and diff
-- Docker container listing, logs, inspect, and non-streaming stats
-- Focused container investigation: state, resource snapshot, and redacted recent logs
+- Docker container listing, logs, inspect, and resource stats
+- Focused project and container investigations
 - Persistent SQLite memory
-- Approval-gated Docker restart
-- Exact proposal-gated source edits
-- Timestamped backups
-- Python syntax verification
+- Exact coding proposals with file snapshots and old/new text
+- Remote human approval and exact proposal application
+- Timestamped backups before edits
+- Container restart through an explicit approval endpoint
 
-## Investigation layer
+## Safety model
 
-For a known project path, investigate_project gives the model a bounded diagnostic snapshot before it starts opening unrelated files.
+The model is the reasoning layer. The VPS application is the enforcement layer.
 
-For a known Docker container, investigate_container combines:
+Read-only operations can be used directly by the model. Source edits and infrastructure actions are not exposed as unrestricted model tools. Coding changes go through:
 
-- container state
-- resource usage
-- recent logs
-- secret redaction
+1. investigate
+2. diagnose
+3. create exact proposal
+4. human approval
+5. exact application
+6. backup
+7. verification
 
-These tools are read-only. They do not replace the underlying tools when a deeper, specific inspection is required.
+The application checks project boundaries, sensitive paths, file hashes, exact edit contents, and proposal status.
 
-## Shell safety
+Secrets such as `.env`, private keys, credential files, and common token/password patterns are blocked or redacted.
 
-The generic shell is intentionally small and read-only.
-
-Allowed commands include:
-
-    pwd
-    ls
-    find
-    whoami
-    uname
-    hostname
-    df
-    free
-    uptime
-
-It does not provide a generic path to git, docker, python, redirection, pipelines, command substitution, or write-capable find options.
-
-## Installation
+## Installation on the Oracle VPS
 
     git clone https://github.com/wroxtaaar/AI-Agent.git
     cd AI-Agent
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
+    ./deploy-agent.sh
 
-Create .env:
+The script creates a virtual environment, installs dependencies, and creates `.env` from `.env.example`.
 
-    GEMINI_API_KEY=your_key_here
-    GEMINI_MODEL=gemini-3.8-flash
+Set:
 
-Never commit .env.
+    OPENROUTER_API_KEY=your_key
+    OPENROUTER_MODEL=openrouter/free
+    AGENT_API_TOKEN=long_random_token
+    AGENT_HOST=0.0.0.0
+    AGENT_PORT=8787
+    AGENT_WORKSPACE_ROOTS=/home/ubuntu
+
+Never commit `.env`.
 
 ## Run
 
     source .venv/bin/activate
-    python agent.py
+    python run_server.py
+
+Then open:
+
+    http://<your-vps-ip>:8787/
+
+Use the configured `AGENT_API_TOKEN` in the UI.
 
 ## Test
 
     python -m unittest discover -s tests -v
 
-Syntax/import smoke check:
-
-    python -m py_compile agent.py model.py config.py tools/*.py
-    python -c "import model, agent; print('Agent import OK')"
-
-## Safety model
-
-### Read-only tools
-
-Inspection tools do not intentionally modify project state.
-
-### Proposal-gated edits
-
-A coding proposal records:
-
-- project path
-- target files
-- SHA-256 snapshots
-- exact old_text
-- exact new_text
-
-The executor refuses to apply an edit if the file changed since proposal creation or if the requested edit differs from the approved edit.
-
-### Human approval
-
-Human confirmation is required before:
-
-- changing source files
-- restarting containers
-- running verification
-
-### Secrets
-
-Known credential/key files are blocked. Text returned from normal files is filtered for common API-key, token, password, secret, bearer-token, and private-key patterns. Focused Docker investigation also redacts its returned logs.
+    python -m py_compile agent.py model.py config.py ai_provider.py agent_runtime.py server.py run_server.py tools/*.py
 
 ## Project direction
 
-The long-term goal is a practical VPS software/DevOps engineer that can investigate failures, understand projects, propose safe changes, verify them, and eventually support controlled deployment workflows without giving the language model unrestricted server access.
+The long-term goal is a practical VPS software/DevOps engineer that can understand all of the user's projects, diagnose failures, make controlled changes, run verification, and eventually support controlled deployments and scheduled monitoring.
