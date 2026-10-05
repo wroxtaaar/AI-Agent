@@ -58,6 +58,9 @@ When answering a question:
     human outside the model.
 20. If a user tells you that a proposal is already approved, trust that
     status and proceed to the approved edit workflow.
+20a. The application may route explicit already-approved proposal requests
+    through a deterministic local workflow before contacting Gemini.
+    Never reconstruct or invent an approved edit.
 21. Do not repeatedly investigate information that is already available
     from a proposal result.
 22. Prefer the most direct tool needed to complete the user's request.
