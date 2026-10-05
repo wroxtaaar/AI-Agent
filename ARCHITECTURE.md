@@ -25,7 +25,7 @@
        Read-only           Approval-gated
           |                   |
           v                   v
-   Investigate/Inspect      Propose/Act
+   Investigate/Diagnose     Propose/Act
           |                   |
           +--------+----------+
                    v
@@ -34,21 +34,70 @@
                    v
                  Report
 
+## Phase 3 diagnostic engine
+
+The diagnostic layer is a bounded evidence orchestrator, not an unrestricted
+diagnose-and-fix function.
+
+build_diagnostic_snapshot(problem, project, container) combines the existing
+read-only investigation primitives and classifies common failure signatures.
+
+The flow is:
+
+    Reported problem
+          |
+          v
+    Project evidence
+          |
+          +---- optional container evidence
+          |
+          v
+    Failure-signal classification
+          |
+          v
+    Gemini targeted inspection
+          |
+          v
+    Confirmed cause / remaining hypothesis
+          |
+          v
+    Exact fix proposal
+          |
+          v
+    Human approval
+
+The classifier recognizes common signals including HTTP gateway failures,
+connection failures, tracebacks, missing modules, syntax/import errors, database
+errors, port conflicts, permission errors, health-check failures, OOM conditions,
+and disk-full conditions.
+
+Signals are not treated as proof. Gemini must corroborate them with relevant
+source/configuration/runtime evidence before creating a fix proposal.
+
+The diagnostic layer never restarts containers, edits files, installs packages,
+deploys code, or otherwise modifies service state.
+
 ## Investigation layer
 
 The Phase 2 investigation tools are bounded orchestration helpers built from existing read-only primitives.
 
-`investigate_project(path)` gathers project layout, detected project type, Git status, current branch, and diff summary. It is intended as the first diagnostic call when the project path is already known.
+investigate_project(path) gathers project layout, detected project type, Git status,
+current branch, and diff summary. It is intended as the first diagnostic call when
+the project path is already known.
 
-`investigate_container(container)` gathers container state, a one-shot resource snapshot, and recent logs. Log output is redacted before it is returned by the summary.
+investigate_container(container) gathers container state, a one-shot resource snapshot,
+and recent logs. Log output is redacted before it is returned by the summary.
 
-These tools do not gain any new write capability. They reduce unnecessary multi-call discovery while keeping deeper inspection available when needed.
+These tools do not gain any new write capability. They reduce unnecessary multi-call
+discovery while keeping deeper inspection available when needed.
 
 ## Trust boundaries
 
 Gemini is responsible for reasoning, choosing tools, interpreting results, and proposing fixes.
 
-The local application is the enforcement layer. It validates path boundaries, sensitive paths, proposal status, SHA-256 snapshots, exact edit contents, human approval, backup creation, and verification approval.
+The local application is the enforcement layer. It validates path boundaries, sensitive paths,
+proposal status, SHA-256 snapshots, exact edit contents, human approval, backup creation,
+and verification approval.
 
 ## Coding workflow
 
@@ -81,4 +130,5 @@ For an explicit already-approved request, the local application reads the stored
 
 The model should be able to reason broadly, but execution should remain narrow.
 
-If a tool can modify state, give it a small explicit capability and put human approval at the local enforcement layer rather than relying on the model to remember the rule.
+If a tool can modify state, give it a small explicit capability and put human approval
+at the local enforcement layer rather than relying on the model to remember the rule.
