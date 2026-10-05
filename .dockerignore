@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.env
+agent_memory.db
+agent_trace.log
+backups
+proposals
+tests
