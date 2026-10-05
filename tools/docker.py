@@ -52,7 +52,7 @@ def _resolve_host_project_path(project: Path) -> tuple[Path | None, dict]:
     self_result = _run_docker([
         "inspect",
         "--format",
-        "{{range .Mounts}}{{.Source}}\\t{{.Destination}}{{"\\n"}}{{end}}",
+        '{{range .Mounts}}{{.Source}}\t{{.Destination}}{{"\n"}}{{end}}',
         "ai-agent",
     ])
     if not self_result.get("success"):
@@ -64,9 +64,9 @@ def _resolve_host_project_path(project: Path) -> tuple[Path | None, dict]:
         }
 
     for line in self_result.get("stdout", "").splitlines():
-        if "\\t" not in line:
+        if "\t" not in line:
             continue
-        source, destination = line.split("\\t", 1)
+        source, destination = line.split("\t", 1)
         if destination.rstrip("/") == "/workspace":
             return Path(source).resolve() / relative, {
                 "success": True,
