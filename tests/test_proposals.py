@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,8 +35,15 @@ class ProposalSafetyTests(unittest.TestCase):
             self.assertTrue(result["success"])
             proposal_path = Path(result["path"])
             self.assertTrue(proposal_path.exists())
-            proposal = proposal_path.read_text(encoding="utf-8")
-            self.assertIn('return "V12"', proposal)
+            proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                proposal["edits"][0]["new_text"],
+                'def hello():\n    return "V12"',
+            )
+            self.assertEqual(
+                proposal["edits"][0]["old_text"],
+                'def hello():\n    return "hello"',
+            )
 
     def test_changed_file_is_rejected_after_approval(self):
         with tempfile.TemporaryDirectory() as directory:
