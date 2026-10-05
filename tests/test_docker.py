@@ -39,6 +39,9 @@ class DockerDiscoveryTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertIsNone(result["host_project"])
         self.assertEqual(result["containers"][0]["name"], "demo")
+        calls = [call.args[0] for call in run_docker.call_args_list]
+        self.assertEqual(calls[0][:2], ["ps", "-a"])
+        self.assertIn("{{.Names}}\\t{{.Mounts}}", calls[0])
 
 
 if __name__ == "__main__":
