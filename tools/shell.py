@@ -1,6 +1,9 @@
 import subprocess
 
 
+# Only commands that are inherently read-only are exposed here.
+# Git and Docker have dedicated read-only tools and are intentionally
+# not available through the generic command runner.
 ALLOWED_COMMANDS = {
     "pwd",
     "whoami",
@@ -10,35 +13,58 @@ ALLOWED_COMMANDS = {
     "uptime",
     "hostname",
     "ls",
-    "git",
-    "docker",
+    "find",
+}
+
+
+FORBIDDEN_TOKENS = {
+    "-exec",
+    "-execdir",
+    "-delete",
+    "-ok",
+    "-okdir",
+    "-fls",
+    "-fprint",
+    "-fprintf",
 }
 
 
 def run_command(command: str) -> dict:
-    """
-    Run a safe, allowlisted shell command.
-
-    This tool intentionally does not allow arbitrary shell commands.
-    """
+    """Run a strictly read-only, allowlisted command."""
 
     command = command.strip()
 
     if not command:
+        return {"success": False, "error": "No command provided."}
+
+    # subprocess is already shell=False, but reject shell syntax explicitly
+    # so the tool contract is clear and future changes cannot accidentally
+    # turn it into a command-injection primitive.
+    forbidden_shell = (";", "|", ">", "<", "\\n", "\\r", "`", "$(", "&&", "||")
+    if any(token in command for token in forbidden_shell):
         return {
             "success": False,
-            "error": "No command provided.",
+            "error": "Shell operators and command substitution are not allowed.",
         }
 
     parts = command.split()
+    executable = parts[0]
 
-    if parts[0] not in ALLOWED_COMMANDS:
+    if executable not in ALLOWED_COMMANDS:
         return {
             "success": False,
             "error": (
-                f"Command '{parts[0]}' is not allowed. "
+                f"Command '{executable}' is not allowed. "
                 f"Allowed commands: {', '.join(sorted(ALLOWED_COMMANDS))}"
             ),
+        }
+
+    lowered_parts = {part.lower() for part in parts[1:]}
+    dangerous = sorted(lowered_parts & FORBIDDEN_TOKENS)
+    if dangerous:
+        return {
+            "success": False,
+            "error": f"Unsafe find options are not allowed: {', '.join(dangerous)}",
         }
 
     try:
