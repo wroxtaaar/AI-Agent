@@ -24,7 +24,7 @@ def restart_container(container: str) -> dict:
 
     approved = require_confirmation(
         "ACTION REQUIRES APPROVAL",
-        f"Action: Restart Docker container\\nContainer: {container}",
+        f"Action: Restart Docker container\nContainer: {container}",
         "Approve this action?",
     )
 
