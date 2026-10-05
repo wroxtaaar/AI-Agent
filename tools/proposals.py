@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import hashlib
 import json
@@ -6,7 +7,7 @@ from pathlib import Path
 from tools.safety import is_sensitive_path, is_within, resolve_path
 
 
-PROPOSAL_DIR = Path(__file__).resolve().parent.parent / "proposals"
+PROPOSAL_DIR = Path(os.getenv("AGENT_PROPOSAL_DIR", str(Path(__file__).resolve().parent.parent / "proposals")))
 
 
 def _file_sha256(path: Path) -> str | None:
