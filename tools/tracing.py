@@ -3,6 +3,8 @@ from functools import wraps
 import json
 import re
 
+from tools.safety import redact_text
+
 
 TRACE_FILE = "agent_trace.log"
 
@@ -25,9 +27,7 @@ def _redact(value):
         return [_redact(item) for item in value]
 
     if isinstance(value, str):
-        if len(value) > 2000:
-            return value[:2000] + "...[TRUNCATED]"
-        return value
+        return redact_text(value, max_length=2000)
 
     return value
 
