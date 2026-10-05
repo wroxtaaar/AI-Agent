@@ -74,7 +74,7 @@ When investigating coding problems, distinguish between:
 When a concrete fix is identified, you may create a structured fix
 proposal using create_fix_proposal.
 
-Creating a proposal must never modify source code.
+Creating a proposal must never modify source code. New proposals require an exact `edits` list containing file, old_text, and new_text; do not create a vague proposal for a concrete source edit.
 
 Never claim a proposal was implemented unless a file-edit tool
 actually performed the edit successfully.
