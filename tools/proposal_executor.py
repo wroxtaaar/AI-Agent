@@ -102,6 +102,50 @@ def _current_sha256(path: Path) -> str | None:
         return None
 
 
+def apply_approved_proposal(proposal_id: str) -> dict:
+    """Apply an approved proposal using only the exact edit stored in it."""
+    result = load_proposal(proposal_id)
+    if not result["success"]:
+        return result
+
+    proposal = result["proposal"]
+    if proposal.get("status") != "approved":
+        return {
+            "success": False,
+            "error": "Proposal must be approved before applying it.",
+        }
+
+    project = Path(proposal["project"]).expanduser().resolve()
+    edits = proposal.get("edits")
+
+    if not isinstance(edits, list) or len(edits) != 1:
+        return {
+            "success": False,
+            "error": "Approved proposal must contain exactly one stored edit.",
+        }
+
+    edit = edits[0]
+    if not isinstance(edit, dict):
+        return {"success": False, "error": "Approved proposal contains an invalid edit."}
+
+    file_entry = edit.get("file")
+    old_text = edit.get("old_text")
+    new_text = edit.get("new_text")
+
+    if not all(isinstance(value, str) for value in (file_entry, old_text, new_text)):
+        return {
+            "success": False,
+            "error": "Approved proposal contains an incomplete edit.",
+        }
+
+    return create_edit_from_proposal(
+        proposal_id=proposal_id,
+        file_path=str(project / file_entry),
+        old_text=old_text,
+        new_text=new_text,
+    )
+
+
 def create_edit_from_proposal(
     proposal_id: str,
     file_path: str,
