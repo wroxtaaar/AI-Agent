@@ -20,8 +20,13 @@ def create_fix_proposal(
     explanation: str,
     files: list[str],
     proposed_changes: str,
+    edits: list[dict],
 ) -> dict:
-    """Create a structured coding-fix proposal without modifying source files."""
+    """Create a structured coding-fix proposal without modifying source files.
+
+    edits must contain the exact approved edit for each target file:
+    {"file": "relative/path.py", "old_text": "...", "new_text": "..."}
+    """
 
     if not isinstance(project, str) or not project.strip():
         return {"success": False, "error": "Project path is required."}
@@ -35,28 +40,92 @@ def create_fix_proposal(
     if not isinstance(files, list) or not all(isinstance(item, str) for item in files):
         return {"success": False, "error": "files must be a list of strings."}
 
+    if not isinstance(edits, list) or not edits:
+        return {
+            "success": False,
+            "error": "Exact edits are required for a new proposal.",
+        }
+
     project_path = Path(project).expanduser().resolve()
     if not project_path.is_dir():
-        return {"success": False, "error": f"Project directory does not exist: {project_path}"}
+        return {
+            "success": False,
+            "error": f"Project directory does not exist: {project_path}",
+        }
 
     file_hashes = {}
-    for file_entry in files:
+    normalized_edits = []
+
+    for edit in edits:
+        if not isinstance(edit, dict):
+            return {"success": False, "error": "Each edit must be an object."}
+
+        file_entry = edit.get("file")
+        old_text = edit.get("old_text")
+        new_text = edit.get("new_text")
+
+        if not all(isinstance(value, str) for value in (file_entry, old_text, new_text)):
+            return {
+                "success": False,
+                "error": "Each edit requires string file, old_text, and new_text fields.",
+            }
+
+        if file_entry not in files:
+            return {
+                "success": False,
+                "error": f"Edit target is not listed in files: {file_entry}",
+            }
+
         target = (project_path / file_entry).resolve()
         try:
             target.relative_to(project_path)
         except ValueError:
             return {
                 "success": False,
-                "error": f"Proposal file is outside the project: {file_entry}",
+                "error": f"Proposal edit is outside the project: {file_entry}",
             }
 
         if not target.is_file():
             return {
                 "success": False,
-                "error": f"Proposal file does not exist: {file_entry}",
+                "error": f"Proposal edit target does not exist: {file_entry}",
+            }
+
+        current = target.read_text(encoding="utf-8", errors="replace")
+        if current.count(old_text) != 1:
+            return {
+                "success": False,
+                "error": (
+                    f"old_text for {file_entry} must occur exactly once "
+                    "in the current file."
+                ),
             }
 
         file_hashes[file_entry] = _file_sha256(target)
+        normalized_edits.append({
+            "file": file_entry,
+            "old_text": old_text,
+            "new_text": new_text,
+        })
+
+    for file_entry in files:
+        if file_entry not in file_hashes:
+            target = (project_path / file_entry).resolve()
+            try:
+                target.relative_to(project_path)
+            except ValueError:
+                return {
+                    "success": False,
+                    "error": f"Proposal file is outside the project: {file_entry}",
+                }
+
+            if not target.is_file():
+                return {
+                    "success": False,
+                    "error": f"Proposal file does not exist: {file_entry}",
+                }
+
+            file_hashes[file_entry] = _file_sha256(target)
 
     PROPOSAL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,6 +138,7 @@ def create_fix_proposal(
         "files": files,
         "file_hashes": file_hashes,
         "proposed_changes": proposed_changes,
+        "edits": normalized_edits,
         "status": "pending",
     }
 
