@@ -1,6 +1,4 @@
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from tools.diagnostics import build_diagnostic_snapshot, extract_failure_signals
@@ -47,8 +45,7 @@ class DiagnosticTests(unittest.TestCase):
             "git": {
                 "status": " M app.py",
                 "branch": "master",
-                "diff_stat": "app.py | 2 +-
-",
+                "diff_stat": "app.py | 2 +-\n",
             },
         }
         investigate_container.return_value = {
