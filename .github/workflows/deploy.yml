@@ -1,0 +1,70 @@
+name: Deploy AI Agent
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-agent-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m py_compile agent.py model.py config.py tools/*.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  deploy:
+    name: Deploy to Oracle VPS
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+
+            cd "$HOME/ai-agent"
+
+            echo "== Repository state =="
+            git status --short --branch
+
+            echo "== Updating repository =="
+            git fetch origin master
+            git merge --ff-only origin/master
+
+            echo "== Installing dependencies =="
+            .venv/bin/python -m pip install -r requirements.txt
+
+            echo "== Compiling Python sources =="
+            .venv/bin/python -m py_compile agent.py model.py config.py tools/*.py
+
+            echo "== Running tests =="
+            .venv/bin/python -m unittest discover -s tests -v
+
+            echo "== Deployment complete =="
+            git log -1 --oneline
