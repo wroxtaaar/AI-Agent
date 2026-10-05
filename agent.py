@@ -1,4 +1,4 @@
-from model import create_chat, send_message
+from model import create_chat, send_message, DIAGNOSTIC_SYSTEM_INSTRUCTION
 
 from tools.system import get_system_info
 from tools.filesystem import list_directory, read_text_file
@@ -61,6 +61,67 @@ TOOLS = [
     trace_tool(show_proposal),
     trace_tool(create_edit_from_proposal),
 ]
+
+
+DIAGNOSTIC_TOOLS = [
+    trace_tool(read_text_file),
+    trace_tool(get_container_logs),
+    trace_tool(inspect_container),
+    trace_tool(get_container_stats),
+    trace_tool(investigate_container),
+    trace_tool(git_status),
+    trace_tool(git_branch),
+    trace_tool(git_diff),
+]
+
+
+def _looks_like_diagnostic_request(user_input: str) -> bool:
+    text = user_input.lower()
+    failure_words = (
+        "failing", "failure", "broken", "error", "crash", "crashing",
+        "not working", "doesn't work", "doesnt work", "diagnose",
+        "diagnostic", "root cause", "investigate",
+    )
+    investigation_words = ("investigate", "diagnose", "root cause", "determine", "identify")
+    return any(w in text for w in failure_words) and any(w in text for w in investigation_words)
+
+
+def _extract_project_path(user_input: str) -> str | None:
+    import re
+    match = re.search(r"(\/workspace\/[^\s`]+)", user_input)
+    return match.group(1).rstrip(".,;:") if match else None
+
+
+def _run_diagnostic_workflow(user_input: str) -> bool:
+    if not _looks_like_diagnostic_request(user_input):
+        return False
+    project = _extract_project_path(user_input)
+    if not project:
+        return False
+
+    print("\n[LOCAL DIAGNOSTIC] Collecting bounded diagnostic snapshot...")
+    snapshot = build_diagnostic_snapshot(problem=user_input, project=project)
+    if not snapshot.get("success"):
+        print(f"\nAI: Diagnostic snapshot failed: {snapshot.get('error', 'Unknown error')}\n")
+        return True
+
+    print("[LOCAL DIAGNOSTIC] Snapshot collected. Gemini is now restricted to read-only targeted evidence.\n")
+    diagnostic_chat = create_chat(
+        DIAGNOSTIC_TOOLS,
+        system_instruction=DIAGNOSTIC_SYSTEM_INSTRUCTION,
+        maximum_remote_calls=6,
+    )
+    prompt = (
+        "Diagnose the user's reported failure using this authoritative snapshot. "
+        "Do not modify anything, restart anything, run tests, execute commands, "
+        "or verify code. Only make a targeted read-only call if the snapshot leaves "
+        "a specific evidence gap.\n\n"
+        f"USER REQUEST:\n{user_input}\n\nDIAGNOSTIC SNAPSHOT:\n{snapshot}"
+    )
+    response = send_message(diagnostic_chat, prompt)
+    if response is not None:
+        print(f"\nAI: {response.text}\n")
+    return True
 
 
 def _run_approved_proposal_workflow(user_input: str) -> bool:
@@ -165,6 +226,9 @@ def main():
 
         try:
             if _run_approved_proposal_workflow(user_input):
+                continue
+
+            if _run_diagnostic_workflow(user_input):
                 continue
 
             response = send_message(chat, user_input)
