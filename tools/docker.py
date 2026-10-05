@@ -40,20 +40,55 @@ def list_containers() -> dict:
     ])
 
 
+def _resolve_host_project_path(project: Path) -> tuple[Path | None, dict]:
+    """Translate an agent-container /workspace path into the Docker host path."""
+    workspace = Path("/workspace").resolve()
+    try:
+        relative = project.relative_to(workspace)
+    except ValueError:
+        return None, {"success": True, "translated": False}
+
+    self_result = _run_docker([
+        "inspect",
+        "--format",
+        "{{range .Mounts}}{{.Source}}\\t{{.Destination}}{{"\\n"}}{{end}}",
+        "ai-agent",
+    ])
+    if not self_result.get("success"):
+        return None, {
+            "success": False,
+            "error": self_result.get("stderr")
+            or self_result.get("error")
+            or "Unable to inspect the agent container mount.",
+        }
+
+    for line in self_result.get("stdout", "").splitlines():
+        if "\\t" not in line:
+            continue
+        source, destination = line.split("\\t", 1)
+        if destination.rstrip("/") == "/workspace":
+            return Path(source).resolve() / relative, {
+                "success": True,
+                "translated": True,
+                "workspace_source": str(Path(source).resolve()),
+            }
+
+    return None, {
+        "success": False,
+        "error": "The ai-agent container does not expose a /workspace mount.",
+    }
+
+
 def find_containers_for_project(project_path: str) -> dict:
-    """Find Docker containers whose mounts reference the supplied project path.
-
-    This is read-only and intentionally conservative: a container is considered
-    related when Docker reports a bind mount whose source contains the project
-    path, or when a mount source ends with the project directory name.
-    """
-    from pathlib import Path
-
+    """Find Docker containers whose mounts reference the supplied project path."""
     if not isinstance(project_path, str) or not project_path.strip():
         return {"success": False, "containers": [], "error": "Project path is required."}
 
     project = Path(project_path).expanduser().resolve()
     project_name = project.name
+
+    host_project, translation = _resolve_host_project_path(project)
+    match_project = host_project if host_project is not None else project
 
     result = _run_docker([
         "ps",
@@ -62,17 +97,24 @@ def find_containers_for_project(project_path: str) -> dict:
         "{{.Names}}\\t{{.Mounts}}",
     ])
     if not result.get("success"):
-        return {"success": False, "containers": [], "error": result.get("stderr") or result.get("error", "Docker inspection failed.")}
+        return {
+            "success": False,
+            "containers": [],
+            "error": result.get("stderr")
+            or result.get("error", "Docker inspection failed."),
+        }
 
     matches = []
     for line in result.get("stdout", "").splitlines():
         if "\\t" not in line:
             continue
         name, mounts = line.split("\\t", 1)
-        mount_sources = [item.split(":", 1)[0] for item in mounts.split(",") if item]
+        mount_sources = [
+            item.split(":", 1)[0] for item in mounts.split(",") if item
+        ]
         if any(
-            source == str(project)
-            or source.startswith(str(project) + "/")
+            source == str(match_project)
+            or source.startswith(str(match_project) + "/")
             or source.endswith("/" + project_name)
             for source in mount_sources
         ):
@@ -81,10 +123,10 @@ def find_containers_for_project(project_path: str) -> dict:
     return {
         "success": True,
         "project": str(project),
+        "host_project": str(host_project) if host_project else None,
+        "translation": translation,
         "containers": matches,
     }
-
-
 def inspect_container(container: str) -> dict:
     """Inspect Docker container configuration and current state."""
     if not container or not container.strip():
