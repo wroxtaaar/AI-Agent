@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from tools.investigation import investigate_container, investigate_project
+from tools.investigation import discover_project_containers, investigate_container, investigate_project
 from tools.safety import redact_text
 
 
