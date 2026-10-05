@@ -11,10 +11,10 @@ SIGNATURES = [
     ("permission_denied", "high", re.compile(r"(permission denied|access denied|operation not permitted)", re.I)),
     ("connection_refused", "high", re.compile(r"(connection refused|connect(?:ion)? .*refused|econnrefused)", re.I)),
     ("connection_timeout", "high", re.compile(r"(connection timed out|connect(?:ion)? timeout|read timed out|timed out)", re.I)),
-    ("http_502", "high", re.compile(r"(?:\\b502\\b|bad gateway)", re.I)),
-    ("http_503", "high", re.compile(r"(?:\\b503\\b|service unavailable)", re.I)),
-    ("http_504", "high", re.compile(r"(?:\\b504\\b|gateway timeout)", re.I)),
-    ("http_500", "high", re.compile(r"(?:\\b500\\b|internal server error)", re.I)),
+    ("http_502", "high", re.compile(r"(?:\b502\b|bad gateway)", re.I)),
+    ("http_503", "high", re.compile(r"(?:\b503\b|service unavailable)", re.I)),
+    ("http_504", "high", re.compile(r"(?:\b504\b|gateway timeout)", re.I)),
+    ("http_500", "high", re.compile(r"(?:\b500\b|internal server error)", re.I)),
     ("port_conflict", "high", re.compile(r"(address already in use|port is already allocated|bind:.*address already in use)", re.I)),
     ("healthcheck_failed", "medium", re.compile(r"(health.?check.*(?:fail|unhealthy)|unhealthy)", re.I)),
     ("traceback", "high", re.compile(r"traceback \(most recent call last\):", re.I)),
@@ -26,12 +26,12 @@ SIGNATURES = [
 
 
 def extract_failure_signals(text: str, limit: int = 30) -> dict:
-    """Extract common failure signatures from untrusted diagnostic text.
-
-    This is evidence classification only. It does not decide the root cause.
-    """
+    """Extract common failure signatures from untrusted diagnostic text."""
     if not isinstance(text, str):
         return {"signals": [], "counts": {}, "error": "text must be a string"}
+
+    if not isinstance(limit, int) or not 1 <= limit <= 100:
+        return {"signals": [], "counts": {}, "error": "limit must be between 1 and 100"}
 
     safe_text = redact_text(text, max_length=12000)
     matches = []
@@ -68,9 +68,9 @@ def build_diagnostic_snapshot(
 ) -> dict:
     """Build a bounded evidence bundle for a reported software failure.
 
-    The result contains observations and classified failure signals only.
-    Gemini remains responsible for diagnosis and deciding whether a coding
-    proposal is justified.
+    This is evidence collection and classification only. Gemini remains
+    responsible for root-cause reasoning and deciding whether a fix proposal
+    is justified.
     """
     if not isinstance(problem, str) or not problem.strip():
         return {"success": False, "error": "A problem description is required."}
@@ -82,7 +82,6 @@ def build_diagnostic_snapshot(
     if not project_result.get("success"):
         return project_result
 
-    container_result = None
     evidence_parts = [
         problem,
         project_result.get("git", {}).get("status", ""),
