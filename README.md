@@ -10,13 +10,14 @@ This is not an unrestricted shell chatbot.
 
 The intended workflow is:
 
-1. Inspect — read server/project state with read-only tools.
-2. Diagnose — reason about the evidence.
-3. Propose — create an exact coding proposal containing the intended old/new text.
-4. Approve — a human explicitly approves the proposal.
-5. Apply — the local executor applies only the exact stored edit.
-6. Verify — the changed project is verified with a separate human approval.
-7. Report — the agent clearly distinguishes proposal, edit, and verification results.
+1. Investigate — gather a focused, read-only snapshot of the relevant project or service.
+2. Inspect — read only the additional files/evidence needed.
+3. Diagnose — reason about the evidence.
+4. Propose — create an exact coding proposal containing the intended old/new text.
+5. Approve — a human explicitly approves the proposal.
+6. Apply — the local executor applies only the exact stored edit.
+7. Verify — the changed project is verified with a separate human approval.
+8. Report — the agent clearly distinguishes proposal, edit, and verification results.
 
 Already-approved proposal requests are routed locally so Gemini cannot reinterpret an approved edit.
 
@@ -26,14 +27,29 @@ Already-approved proposal requests are routed locally so Gemini cannot reinterpr
 - Directory listing
 - Secret-filtered text-file reading
 - Project structure detection
+- Focused project investigation: layout, project type, Git status/branch/diff
 - Source-file discovery
 - Git status, branch, log, and diff
 - Docker container listing, logs, inspect, and non-streaming stats
+- Focused container investigation: state, resource snapshot, and redacted recent logs
 - Persistent SQLite memory
 - Approval-gated Docker restart
 - Exact proposal-gated source edits
 - Timestamped backups
 - Python syntax verification
+
+## Investigation layer
+
+For a known project path, investigate_project gives the model a bounded diagnostic snapshot before it starts opening unrelated files.
+
+For a known Docker container, investigate_container combines:
+
+- container state
+- resource usage
+- recent logs
+- secret redaction
+
+These tools are read-only. They do not replace the underlying tools when a deeper, specific inspection is required.
 
 ## Shell safety
 
@@ -110,7 +126,7 @@ Human confirmation is required before:
 
 ### Secrets
 
-Known credential/key files are blocked. Text returned from normal files is filtered for common API-key, token, password, secret, bearer-token, and private-key patterns.
+Known credential/key files are blocked. Text returned from normal files is filtered for common API-key, token, password, secret, bearer-token, and private-key patterns. Focused Docker investigation also redacts its returned logs.
 
 ## Project direction
 
