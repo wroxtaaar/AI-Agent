@@ -32,9 +32,12 @@ def investigate_project(path: str = ".") -> dict:
             "important_files": project.get("important_files", []),
         },
         "git": {
-            "status": redact_text(status.get("stdout", ""), max_length=4000),
-            "branch": redact_text(branch.get("stdout", ""), max_length=500),
-            "diff_stat": redact_text(diff.get("stdout", ""), max_length=3000),
+            "status": redact_text(status.get("stdout", "") or status.get("stderr", ""), max_length=4000),
+            "branch": redact_text(branch.get("stdout", "") or branch.get("stderr", ""), max_length=500),
+            "diff_stat": redact_text(diff.get("stdout", "") or diff.get("stderr", ""), max_length=3000),
+            "status_ok": bool(status.get("success")),
+            "branch_ok": bool(branch.get("success")),
+            "diff_ok": bool(diff.get("success")),
         },
         "diagnostic_guidance": [
             "Use the project layout and important files to identify the likely runtime/build system.",
