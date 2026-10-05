@@ -72,6 +72,37 @@ class DiagnosticTests(unittest.TestCase):
         investigate_project.assert_called_once_with("/tmp/demo")
         investigate_container.assert_called_once_with("demo", lines=80)
 
+    @patch("tools.diagnostics.discover_project_containers")
+    @patch("tools.diagnostics.investigate_container")
+    @patch("tools.diagnostics.investigate_project")
+    def test_auto_discovers_project_container(self, investigate_project, investigate_container, discover_project_containers):
+        investigate_project.return_value = {
+            "success": True,
+            "project": "/tmp/demo",
+            "project_type": {"success": True, "type": "node"},
+            "layout": {"file_count": 2, "directory_count": 1, "important_files": ["package.json"]},
+            "git": {"status": "", "branch": "master", "diff_stat": ""},
+        }
+        discover_project_containers.return_value = {
+            "success": True,
+            "containers": [{"name": "demo", "mounts": ["/tmp/demo"]}],
+        }
+        investigate_container.return_value = {
+            "success": True,
+            "container": "demo",
+            "inspection": "Status=running",
+            "stats": "CPU=1%",
+            "recent_logs": "service started",
+        }
+
+        result = build_diagnostic_snapshot("Application failure", project="/tmp/demo")
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["container"]["auto_discovered"])
+        self.assertEqual(result["container"]["containers"][0]["container"], "demo")
+        discover_project_containers.assert_called_once_with("/tmp/demo")
+        investigate_container.assert_called_once_with("demo", lines=120)
+
     def test_requires_problem_description(self):
         result = build_diagnostic_snapshot("")
 
