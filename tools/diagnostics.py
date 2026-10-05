@@ -113,12 +113,17 @@ def build_diagnostic_snapshot(
             if result.get("inspection"):
                 evidence_parts.append(result["inspection"])
     else:
+        discovery_failed = bool(discovery and not discovery.get("success"))
         container_result = {
-            "success": True,
+            "success": not discovery_failed,
             "skipped": True,
             "auto_discovered": not bool(container.strip()),
             "discovery": discovery if not container.strip() else None,
-            "reason": "No related Docker container was found for this project.",
+            "reason": (
+                "Docker container discovery failed; no runtime container evidence was collected."
+                if discovery_failed
+                else "No related Docker container was found for this project."
+            ),
         }
 
     evidence = "\n".join(str(part) for part in evidence_parts if part)
