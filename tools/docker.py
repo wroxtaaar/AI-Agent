@@ -89,6 +89,15 @@ def find_containers_for_project(project_path: str) -> dict:
     project_name = project.name
 
     host_project, translation = _resolve_host_project_path(project)
+    if project.is_relative_to(Path("/workspace")) and host_project is None and not translation.get("translated"):
+        return {
+            "success": False,
+            "project": str(project),
+            "host_project": None,
+            "translation": translation,
+            "containers": [],
+            "error": translation.get("error", "Unable to translate /workspace project path to the Docker host path."),
+        }
     match_project = host_project if host_project is not None else project
 
     result = _run_docker([
