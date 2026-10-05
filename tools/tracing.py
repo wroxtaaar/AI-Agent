@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from functools import wraps
 import json
@@ -6,7 +7,7 @@ import re
 from tools.safety import redact_text
 
 
-TRACE_FILE = "agent_trace.log"
+TRACE_FILE = os.getenv("AGENT_TRACE_FILE", "agent_trace.log")
 
 
 SENSITIVE_KEY_PATTERN = re.compile(
