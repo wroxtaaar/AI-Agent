@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oracle VPS AI Agent</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:1000px;margin:auto;padding:16px;background:#111;color:#eee}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#chat{min-height:55vh;border:1px solid #333;border-radius:12px;padding:12px;overflow:auto}
+.msg{padding:10px 12px;margin:8px 0;border-radius:10px;white-space:pre-wrap}
+.user{background:#243447}.ai{background:#1d2a20}.tool{font-size:.85em;color:#aaa}
+form{display:flex;gap:8px;margin-top:12px}textarea{flex:1;min-height:70px;background:#181818;color:#fff;border:1px solid #444;border-radius:10px;padding:10px}
+button{background:#eee;color:#111;border:0;border-radius:9px;padding:10px 14px;font-weight:600}
+#token{width:100%;box-sizing:border-box;background:#181818;color:#fff;border:1px solid #444;border-radius:8px;padding:9px}
+small{color:#999}
+</style>
+</head>
+<body>
+<header><div><h2>Oracle VPS AI Agent</h2><small>Projects • Docker • Git • diagnostics • safe coding proposals</small></div></header>
+<p><input id="token" type="password" placeholder="AGENT_API_TOKEN"></p>
+<div id="chat"></div>
+<form><textarea id="input" placeholder="Ask: Check all my projects, investigate Torrent Studio, find unhealthy containers..."></textarea><button>Send</button></form>
+<script>
+const chat=document.querySelector('#chat'), input=document.querySelector('#input'), token=document.querySelector('#token');
+function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}
+document.querySelector('form').onsubmit=async e=>{
+ e.preventDefault(); const message=input.value.trim(); if(!message)return;
+ add('user',message); input.value=''; add('ai','Working...');
+ const last=chat.lastChild;
+ try{
+   const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token.value},body:JSON.stringify({message})});
+   const data=await r.json(); last.remove();
+   add('ai',r.ok?(data.answer||'No answer returned.'):(data.detail||'Request failed.'));
+   if(data.tool_trace?.length) add('tool','Tools used: '+data.tool_trace.map(x=>x.tool).join(', '));
+ }catch(err){last.remove();add('ai','Request failed: '+err)}
+};
+</script>
+</body>
+</html>

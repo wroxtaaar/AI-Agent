@@ -2,83 +2,71 @@
 
 ## High-level flow
 
-    User
-      |
-      v
-    agent.py
-      |
-      +---- explicit approved-proposal request
-      |             |
-      |             v
-      |       local deterministic workflow
-      |
-      +---- normal request
-                    |
-                    v
-                 Gemini
-                    |
-                    v
-                  Tools
-                    |
-          +---------+---------+
-          |                   |
-       Read-only           Approval-gated
-          |                   |
-          v                   v
-   Investigate/Inspect      Propose/Act
-          |                   |
-          +--------+----------+
-                   v
-                Verify
-                   |
-                   v
-                 Report
+    User phone/browser
+          |
+          v
+       FastAPI
+          |
+          v
+     AgentRuntime
+       |       |
+       |       +---- tool calls
+       |                |
+       v                v
+    OpenRouter       VPS tools
+       |             /  |  \
+       |           Git Docker Files
+       |                |
+       +<---------------+
+          tool results
+              |
+              v
+          final answer
 
-## Investigation layer
+## AI boundary
 
-The Phase 2 investigation tools are bounded orchestration helpers built from existing read-only primitives.
+The LLM is the reasoning and planning layer. It does not directly execute shell commands, edit files, or restart containers.
 
-`investigate_project(path)` gathers project layout, detected project type, Git status, current branch, and diff summary. It is intended as the first diagnostic call when the project path is already known.
+The application:
+1. receives the model's structured tool call
+2. validates the tool name and arguments
+3. executes the local Python function
+4. trims/redacts results
+5. returns the result to the model
 
-`investigate_container(container)` gathers container state, a one-shot resource snapshot, and recent logs. Log output is redacted before it is returned by the summary.
+The loop supports multiple tool calls and stops when the model returns a final response.
 
-These tools do not gain any new write capability. They reduce unnecessary multi-call discovery while keeping deeper inspection available when needed.
+## Project discovery
+
+`discover_projects` scans configured `AGENT_WORKSPACE_ROOTS` for Git repositories up to a bounded depth. This gives the agent a current project inventory without hardcoding the user's repository list.
 
 ## Trust boundaries
 
-Gemini is responsible for reasoning, choosing tools, interpreting results, and proposing fixes.
-
-The local application is the enforcement layer. It validates path boundaries, sensitive paths, proposal status, SHA-256 snapshots, exact edit contents, human approval, backup creation, and verification approval.
+The local application is the security boundary. Known credential/key files are blocked, common secrets are redacted, paths are resolved, and write-capable operations are not exposed as unrestricted model tools.
 
 ## Coding workflow
 
-A new proposal stores exact edits in the form:
+A coding request should normally become:
 
-    {
-      "file": "relative/path.py",
-      "old_text": "...",
-      "new_text": "..."
-    }
+1. focused investigation
+2. source/config inspection
+3. diagnosis
+4. exact proposal with old_text/new_text
+5. human approval
+6. SHA-256 snapshot check
+7. exact application
+8. timestamped backup
+9. verification
+10. report
 
-The proposal also stores SHA-256 hashes of relevant files.
+Remote approval is handled by authenticated API endpoints rather than terminal stdin, so the agent can be operated from a phone.
 
-When applying:
+## Infrastructure actions
 
-1. proposal must be approved
-2. target must remain inside the approved project
-3. target must be listed in the proposal
-4. target hash must still match
-5. the stored edit must exist exactly once
-6. the user sees the generated diff
-7. the user approves the edit
-8. a backup is created
-9. the file is changed
-10. verification becomes mandatory
+Container restart is also outside the model's unrestricted tool set. The user explicitly approves the action through the authenticated API.
 
-For an explicit already-approved request, the local application reads the stored edit and never asks Gemini to reconstruct it.
+Future controlled actions such as deploy, rollback, branch creation, and service configuration should follow the same pattern.
 
 ## Design principle
 
-The model should be able to reason broadly, but execution should remain narrow.
-
-If a tool can modify state, give it a small explicit capability and put human approval at the local enforcement layer rather than relying on the model to remember the rule.
+The model should be able to reason broadly, but execution should remain narrow. Every new tool should have a clear capability, bounded inputs, redacted outputs where needed, and an explicit approval path for side effects.

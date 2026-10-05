@@ -2,7 +2,7 @@ name: Agent Tests
 
 on:
   push:
-    branches: ["master"]
+    branches: ["master", "v13-vps-control-plane"]
   pull_request:
     branches: ["master"]
 
@@ -22,7 +22,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m py_compile agent.py model.py config.py tools/*.py
+        run: python -m py_compile agent.py model.py config.py ai_provider.py agent_runtime.py server.py run_server.py tools/*.py
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
