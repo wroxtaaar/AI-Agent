@@ -3,6 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from tools.safety import is_sensitive_path, is_within, resolve_path
+
 
 PROPOSAL_DIR = Path(__file__).resolve().parent.parent / "proposals"
 
@@ -46,7 +48,7 @@ def create_fix_proposal(
             "error": "Exact edits are required for a new proposal.",
         }
 
-    project_path = Path(project).expanduser().resolve()
+    project_path = resolve_path(project)
     if not project_path.is_dir():
         return {
             "success": False,
@@ -77,6 +79,11 @@ def create_fix_proposal(
             }
 
         target = (project_path / file_entry).resolve()
+        if is_sensitive_path(target):
+            return {
+                "success": False,
+                "error": f"Proposal cannot target sensitive credential/key files: {file_entry}",
+            }
         try:
             target.relative_to(project_path)
         except ValueError:
@@ -111,6 +118,11 @@ def create_fix_proposal(
     for file_entry in files:
         if file_entry not in file_hashes:
             target = (project_path / file_entry).resolve()
+            if is_sensitive_path(target):
+                return {
+                    "success": False,
+                    "error": f"Proposal cannot include sensitive credential/key files: {file_entry}",
+                }
             try:
                 target.relative_to(project_path)
             except ValueError:
