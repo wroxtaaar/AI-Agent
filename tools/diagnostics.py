@@ -88,11 +88,16 @@ def build_diagnostic_snapshot(
         project_result.get("git", {}).get("diff_stat", ""),
     ]
 
-    names = [container.strip()] if container.strip() else [
-        item["name"]
-        for item in discover_project_containers(project_result["project"]).get("containers", [])
-        if item.get("name")
-    ][:3]
+    discovery = None
+    if container.strip():
+        names = [container.strip()]
+    else:
+        discovery = discover_project_containers(project_result["project"])
+        names = [
+            item["name"]
+            for item in discovery.get("containers", [])
+            if item.get("name")
+        ][:3]
 
     if names:
         results = [investigate_container(name, lines=log_lines) for name in names]
@@ -100,6 +105,7 @@ def build_diagnostic_snapshot(
             "success": any(item.get("success") for item in results),
             "containers": results,
             "auto_discovered": not bool(container.strip()),
+            "discovery": discovery if not container.strip() else None,
         }
         for result in results:
             if result.get("recent_logs"):
@@ -111,6 +117,7 @@ def build_diagnostic_snapshot(
             "success": True,
             "skipped": True,
             "auto_discovered": not bool(container.strip()),
+            "discovery": discovery if not container.strip() else None,
             "reason": "No related Docker container was found for this project.",
         }
 
