@@ -104,7 +104,7 @@ def find_containers_for_project(project_path: str) -> dict:
         "ps",
         "-a",
         "--format",
-        "{{.Names}}\\t{{.Mounts}}",
+        "{{.Names}}\t{{.Mounts}}",
     ])
     if not result.get("success"):
         return {
@@ -116,9 +116,9 @@ def find_containers_for_project(project_path: str) -> dict:
 
     matches = []
     for line in result.get("stdout", "").splitlines():
-        if "\\t" not in line:
+        if "\t" not in line:
             continue
-        name, mounts = line.split("\\t", 1)
+        name, mounts = line.split("\t", 1)
         mount_sources = [
             item.split(":", 1)[0] for item in mounts.split(",") if item
         ]
