@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+from tools.safety import redact_text
+
 
 DB_PATH = Path(__file__).resolve().parent.parent / "agent_memory.db"
 
@@ -29,7 +31,7 @@ def save_memory(content: str) -> dict:
             "error": "Memory content cannot be empty.",
         }
 
-    content = content.strip()
+    content = redact_text(content.strip(), max_length=5000)
 
     if len(content) > 5000:
         return {
