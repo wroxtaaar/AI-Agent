@@ -1,4 +1,7 @@
+import re
 import subprocess
+
+from tools.safety import require_confirmation
 
 
 def restart_container(container: str) -> dict:
@@ -13,17 +16,19 @@ def restart_container(container: str) -> dict:
         }
 
     container = container.strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", container):
+        return {
+            "success": False,
+            "error": "Invalid Docker container name.",
+        }
 
-    print("\n" + "=" * 60)
-    print("⚠️  ACTION REQUIRES APPROVAL")
-    print("=" * 60)
-    print(f"Action: Restart Docker container")
-    print(f"Container: {container}")
-    print("=" * 60)
+    approved = require_confirmation(
+        "ACTION REQUIRES APPROVAL",
+        f"Action: Restart Docker container\\nContainer: {container}",
+        "Approve this action?",
+    )
 
-    answer = input("Approve this action? [y/N]: ").strip().lower()
-
-    if answer not in {"y", "yes"}:
+    if not approved:
         print("Action cancelled.\n")
 
         return {
