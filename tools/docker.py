@@ -129,7 +129,7 @@ def find_containers_for_project(project_path: str) -> dict:
         inspected = _run_docker([
             "inspect",
             "--format",
-            '{{range .Mounts}}{{.Type}}\\t{{.Source}}\\t{{.Destination}}{{"\\n"}}{{end}}',
+            '{{range .Mounts}}{{.Type}}\t{{.Source}}\t{{.Destination}}{{"\n"}}{{end}}',
             name,
         ])
         if not inspected.get("success"):
@@ -138,7 +138,7 @@ def find_containers_for_project(project_path: str) -> dict:
 
         mount_sources = []
         for line in inspected.get("stdout", "").splitlines():
-            parts = line.split("\\t", 2)
+            parts = line.split("\t", 2)
             if len(parts) != 3:
                 continue
             mount_type, source, destination = parts
