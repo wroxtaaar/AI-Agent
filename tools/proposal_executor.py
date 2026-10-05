@@ -1,56 +1,31 @@
+import hashlib
 import json
 from pathlib import Path
 
 from tools.editor import replace_in_file
 
 
-PROPOSAL_DIR = (
-    Path(__file__).resolve().parent.parent / "proposals"
-)
+PROPOSAL_DIR = Path(__file__).resolve().parent.parent / "proposals"
 
 
 def load_proposal(proposal_id: str) -> dict:
-    """Load a proposal by ID."""
-
     if not proposal_id or not proposal_id.strip():
-        return {
-            "success": False,
-            "error": "Proposal ID is required.",
-        }
+        return {"success": False, "error": "Proposal ID is required."}
 
-    proposal_path = (
-        PROPOSAL_DIR / f"proposal_{proposal_id}.json"
-    )
+    proposal_path = PROPOSAL_DIR / f"proposal_{proposal_id}.json"
 
     if not proposal_path.exists():
-        return {
-            "success": False,
-            "error": f"Proposal not found: {proposal_path}",
-        }
+        return {"success": False, "error": f"Proposal not found: {proposal_path}"}
 
     try:
-        proposal = json.loads(
-            proposal_path.read_text(encoding="utf-8")
-        )
-
-        return {
-            "success": True,
-            "path": str(proposal_path),
-            "proposal": proposal,
-        }
-
+        proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+        return {"success": True, "path": str(proposal_path), "proposal": proposal}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        return {"success": False, "error": str(e)}
 
 
 def show_proposal(proposal_id: str) -> dict:
-    """Display a proposal for human review."""
-
     result = load_proposal(proposal_id)
-
     if not result["success"]:
         return result
 
@@ -59,23 +34,13 @@ def show_proposal(proposal_id: str) -> dict:
     print("\n" + "=" * 70)
     print("CODING FIX PROPOSAL")
     print("=" * 70)
-
-    print("\nProject:")
-    print(proposal["project"])
-
-    print("\nProblem:")
-    print(proposal["problem"])
-
-    print("\nExplanation:")
-    print(proposal["explanation"])
-
+    print(f"\nProject:\n{proposal.get('project')}")
+    print(f"\nProblem:\n{proposal.get('problem')}")
+    print(f"\nExplanation:\n{proposal.get('explanation')}")
     print("\nFiles:")
-    for file in proposal["files"]:
-        print(f"  - {file}")
-
-    print("\nProposed changes:")
-    print(proposal["proposed_changes"])
-
+    for file_entry in proposal.get("files", []):
+        print(f"  - {file_entry}")
+    print(f"\nProposed changes:\n{proposal.get('proposed_changes')}")
     print("=" * 70)
 
     return {
@@ -87,10 +52,7 @@ def show_proposal(proposal_id: str) -> dict:
 
 
 def approve_proposal(proposal_id: str) -> dict:
-    """Mark a pending proposal as approved."""
-
     result = load_proposal(proposal_id)
-
     if not result["success"]:
         return result
 
@@ -100,16 +62,10 @@ def approve_proposal(proposal_id: str) -> dict:
     if proposal.get("status") != "pending":
         return {
             "success": False,
-            "error": (
-                f"Proposal is not pending. "
-                f"Current status: {proposal.get('status')}"
-            ),
+            "error": f"Proposal is not pending. Current status: {proposal.get('status')}",
         }
 
-    answer = input(
-        "\nApprove this coding proposal? [y/N]: "
-    ).strip().lower()
-
+    answer = input("\nApprove this coding proposal? [y/N]: ").strip().lower()
     if answer not in {"y", "yes"}:
         return {
             "success": False,
@@ -119,13 +75,8 @@ def approve_proposal(proposal_id: str) -> dict:
         }
 
     proposal["status"] = "approved"
-
     proposal_path.write_text(
-        json.dumps(
-            proposal,
-            indent=2,
-            ensure_ascii=False,
-        ),
+        json.dumps(proposal, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
@@ -137,25 +88,22 @@ def approve_proposal(proposal_id: str) -> dict:
     }
 
 
+def _current_sha256(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except (OSError, ValueError):
+        return None
+
+
 def create_edit_from_proposal(
     proposal_id: str,
     file_path: str,
     old_text: str,
     new_text: str,
 ) -> dict:
-    """
-    Convert an approved proposal into an exact file edit.
-
-    Safety checks:
-    1. Proposal must be approved.
-    2. Target must be inside the approved project.
-    3. Target must be explicitly listed in the proposal.
-    4. The editor requires human approval.
-    5. The editor creates a backup before writing.
-    """
+    """Apply an approved proposal only if its target and snapshot still match."""
 
     result = load_proposal(proposal_id)
-
     if not result["success"]:
         return result
 
@@ -164,76 +112,56 @@ def create_edit_from_proposal(
     if proposal.get("status") != "approved":
         return {
             "success": False,
-            "error": (
-                "Proposal must be approved before "
-                "creating an edit."
-            ),
+            "error": "Proposal must be approved before creating an edit.",
         }
 
-    project = (
-        Path(proposal["project"])
-        .expanduser()
-        .resolve()
-    )
+    project = Path(proposal["project"]).expanduser().resolve()
+    target = Path(file_path).expanduser().resolve()
 
-    target = (
-        Path(file_path)
-        .expanduser()
-        .resolve()
-    )
-
-    # Security boundary #1:
-    # Target must remain inside the approved project.
     try:
         target.relative_to(project)
     except ValueError:
         return {
             "success": False,
-            "error": (
-                "Edit target must be inside "
-                "the approved project."
-            ),
+            "error": "Edit target must be inside the approved project.",
         }
 
-    # Security boundary #2:
-    # Target must be explicitly listed in the proposal.
     approved_files = proposal.get("files", [])
-
     if not isinstance(approved_files, list):
-        return {
-            "success": False,
-            "error": (
-                "Proposal contains an invalid "
-                "'files' list."
-            ),
-        }
+        return {"success": False, "error": "Proposal contains an invalid 'files' list."}
 
     approved_targets = set()
-
     for file_entry in approved_files:
         if not isinstance(file_entry, str):
             continue
-
         try:
-            approved_target = (
-                project / file_entry
-            ).resolve()
-
+            approved_target = (project / file_entry).resolve()
             approved_target.relative_to(project)
-
             approved_targets.add(approved_target)
-
         except (ValueError, TypeError):
             continue
 
     if target not in approved_targets:
         return {
             "success": False,
-            "error": (
-                "Edit target is not listed in "
-                "the approved proposal."
-            ),
+            "error": "Edit target is not listed in the approved proposal.",
         }
+
+    # New proposals record hashes. Older proposals do not, so they remain
+    # usable, but new proposals get stale-file protection.
+    expected_hash = proposal.get("file_hashes", {}).get(
+        next((f for f in approved_files if (project / f).resolve() == target), ""),
+    )
+
+    if expected_hash:
+        actual_hash = _current_sha256(target)
+        if actual_hash != expected_hash:
+            return {
+                "success": False,
+                "error": "The target file changed after the proposal was created. Create a new proposal.",
+                "expected_hash": expected_hash,
+                "actual_hash": actual_hash,
+            }
 
     return replace_in_file(
         str(target),
