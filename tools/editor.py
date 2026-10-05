@@ -1,13 +1,17 @@
 from pathlib import Path
 
 from tools.backup import create_backup, generate_diff
+from tools.safety import is_sensitive_path, is_within, resolve_path
 
 
 MAX_FILE_SIZE = 1_000_000
 
 
 def _read_file(path: str) -> tuple[Path | None, str | None]:
-    target = Path(path).expanduser().resolve()
+    target = resolve_path(path)
+
+    if is_sensitive_path(target):
+        return None, "Editing sensitive credential/key files is not allowed."
 
     if not target.exists():
         return None, f"File does not exist: {target}"
@@ -40,6 +44,13 @@ def replace_in_file(
 
     if target is None:
         return {"success": False, "error": content_or_error}
+
+    if project is not None:
+        project_root = resolve_path(project)
+        if not project_root.is_dir():
+            return {"success": False, "error": f"Project does not exist: {project_root}"}
+        if not is_within(target, project_root):
+            return {"success": False, "error": "Edit target must be inside the approved project."}
 
     content = content_or_error
 
