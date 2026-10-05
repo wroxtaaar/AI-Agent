@@ -15,6 +15,7 @@ from tools.proposal_executor import (
     show_proposal,
     approve_proposal,
     create_edit_from_proposal,
+    apply_approved_proposal,
 )
 from tools.verification import (
     detect_project_type,
@@ -51,6 +52,63 @@ TOOLS = [
     trace_tool(show_proposal),
     trace_tool(create_edit_from_proposal),
 ]
+
+
+def _run_approved_proposal_workflow(user_input: str) -> bool:
+    """Handle explicit already-approved proposal requests without Gemini."""
+    import re
+
+    lowered = user_input.lower()
+    if "approved" not in lowered:
+        return False
+    if "apply" not in lowered and "complete" not in lowered:
+        return False
+
+    match = re.search(
+        r"\b(?:proposal|fix proposal)\s+([A-Za-z0-9_-]+)",
+        user_input,
+        re.IGNORECASE,
+    )
+    if not match:
+        return False
+
+    proposal_id = match.group(1)
+
+    print(f"\n[LOCAL WORKFLOW] Applying approved proposal {proposal_id}...")
+    result = apply_approved_proposal(proposal_id)
+
+    if not result.get("success"):
+        print(
+            f"\nAI: Approved proposal workflow failed: "
+            f"{result.get('error', 'Unknown error')}\n"
+        )
+        return True
+
+    print(
+        f"\nAI: Approved proposal {proposal_id} was applied successfully."
+    )
+
+    if result.get("verification_required"):
+        project = result.get("project")
+        if project:
+            print("\n[LOCAL WORKFLOW] Running required Python verification...")
+            verification = verify_python_project(project)
+            if verification.get("success"):
+                print(
+                    f"\nAI: Python syntax verification succeeded for {project}.\n"
+                )
+            else:
+                print(
+                    f"\nAI: The edit succeeded, but verification failed: "
+                    f"{verification.get('error') or verification.get('message', 'Unknown verification failure')}\n"
+                )
+        else:
+            print(
+                "\nAI: Edit succeeded, but no project path was returned "
+                "for verification.\n"
+            )
+
+    return True
 
 
 def main():
@@ -94,6 +152,9 @@ def main():
             continue
 
         try:
+            if _run_approved_proposal_workflow(user_input):
+                continue
+
             response = send_message(chat, user_input)
 
             if response is None:
