@@ -1,62 +1,16 @@
-import re
-from pathlib import Path
-
-
-SENSITIVE_NAMES = {
-    ".env",
-    ".env.local",
-    ".env.production",
-    ".env.development",
-    ".git-credentials",
-    "credentials",
-    "credentials.json",
-    "secrets.json",
-    "secret.json",
-    "id_rsa",
-    "id_ed25519",
-    "id_ecdsa",
-}
-
-
-def _is_sensitive_path(target: Path) -> bool:
-    name = target.name.lower()
-
-    if name in SENSITIVE_NAMES:
-        return True
-
-    if name.endswith((".pem", ".key", ".p12", ".pfx", ".jks")):
-        return True
-
-    sensitive_parts = {".ssh", ".aws", ".gnupg"}
-    return any(part.lower() in sensitive_parts for part in target.parts)
-
-
-def _redact_sensitive_content(content: str) -> str:
-    patterns = [
-        (
-            r"(?im)^([ 	]*(?:export[ 	]+)?[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|PASSWORD|SECRET|PRIVATE[_-]?KEY)[A-Z0-9_]*[ 	]*=[ 	]*)(.+)$",
-            r"\1[REDACTED]",
-        ),
-        (
-            r"(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]+",
-            r"\1[REDACTED]",
-        ),
-        (
-            r"(?i)(-----BEGIN [A-Z ]*PRIVATE KEY-----).*?(-----END [A-Z ]*PRIVATE KEY-----)",
-            r"\1[REDACTED]\2",
-        ),
-    ]
-
-    for pattern, replacement in patterns:
-        content = re.sub(pattern, replacement, content, flags=re.MULTILINE | re.DOTALL if "PRIVATE KEY" in pattern else re.MULTILINE)
-
-    return content
+from tools.safety import is_sensitive_path, redact_text, resolve_path
 
 
 def list_directory(path: str = ".") -> dict:
     """List files and directories at a path. Read-only."""
 
-    target = Path(path).expanduser().resolve()
+    target = resolve_path(path)
+
+    if is_sensitive_path(target):
+        return {
+            "success": False,
+            "error": "Listing sensitive credential/key directories or files is not allowed.",
+        }
 
     if not target.exists():
         return {"success": False, "error": f"Path does not exist: {target}"}
@@ -66,6 +20,14 @@ def list_directory(path: str = ".") -> dict:
 
     items = []
     for item in sorted(target.iterdir()):
+        if is_sensitive_path(item):
+            items.append({
+                "name": item.name,
+                "type": "file" if item.is_file() else "directory",
+                "filtered": True,
+            })
+            continue
+
         items.append({
             "name": item.name,
             "type": "directory" if item.is_dir() else "file",
@@ -81,9 +43,9 @@ def list_directory(path: str = ".") -> dict:
 def read_text_file(path: str) -> dict:
     """Read a text file while blocking known secret files and redacting common secrets."""
 
-    target = Path(path).expanduser().resolve()
+    target = resolve_path(path)
 
-    if _is_sensitive_path(target):
+    if is_sensitive_path(target):
         return {
             "success": False,
             "error": "Reading sensitive credential/key files is not allowed.",
@@ -100,7 +62,7 @@ def read_text_file(path: str) -> dict:
         return {
             "success": True,
             "path": str(target),
-            "content": _redact_sensitive_content(content),
+            "content": redact_text(content),
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
