@@ -157,7 +157,7 @@ def create_chat(tools, system_instruction=None, maximum_remote_calls=12):
     )
 
 
-def send_message(chat, message, retries=3):def send_message(chat, message, retries=3):
+def send_message(chat, message, retries=3):
     for attempt in range(retries):
         try:
             return chat.send_message(message)
