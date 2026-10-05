@@ -1,11 +1,17 @@
-from pathlib import Path
 from datetime import datetime
+import hashlib
 import json
+from pathlib import Path
 
 
-PROPOSAL_DIR = (
-    Path(__file__).resolve().parent.parent / "proposals"
-)
+PROPOSAL_DIR = Path(__file__).resolve().parent.parent / "proposals"
+
+
+def _file_sha256(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except (OSError, ValueError):
+        return None
 
 
 def create_fix_proposal(
@@ -15,84 +21,70 @@ def create_fix_proposal(
     files: list[str],
     proposed_changes: str,
 ) -> dict:
-    """
-    Create a structured coding-fix proposal.
+    """Create a structured coding-fix proposal without modifying source files."""
 
-    This tool does NOT modify any source files.
-    """
+    if not isinstance(project, str) or not project.strip():
+        return {"success": False, "error": "Project path is required."}
 
-    if not project.strip():
-        return {
-            "success": False,
-            "error": "Project path is required.",
-        }
+    if not isinstance(problem, str) or not problem.strip():
+        return {"success": False, "error": "Problem description is required."}
 
-    if not problem.strip():
-        return {
-            "success": False,
-            "error": "Problem description is required.",
-        }
+    if not isinstance(proposed_changes, str) or not proposed_changes.strip():
+        return {"success": False, "error": "Proposed changes are required."}
 
-    if not proposed_changes.strip():
-        return {
-            "success": False,
-            "error": "Proposed changes are required.",
-        }
+    if not isinstance(files, list) or not all(isinstance(item, str) for item in files):
+        return {"success": False, "error": "files must be a list of strings."}
 
-    if not isinstance(files, list):
-        return {
-            "success": False,
-            "error": "files must be a list.",
-        }
+    project_path = Path(project).expanduser().resolve()
+    if not project_path.is_dir():
+        return {"success": False, "error": f"Project directory does not exist: {project_path}"}
 
-    PROPOSAL_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    file_hashes = {}
+    for file_entry in files:
+        target = (project_path / file_entry).resolve()
+        try:
+            target.relative_to(project_path)
+        except ValueError:
+            return {
+                "success": False,
+                "error": f"Proposal file is outside the project: {file_entry}",
+            }
 
-    timestamp = datetime.now().strftime(
-        "%Y%m%d_%H%M%S"
-    )
+        if not target.is_file():
+            return {
+                "success": False,
+                "error": f"Proposal file does not exist: {file_entry}",
+            }
 
+        file_hashes[file_entry] = _file_sha256(target)
+
+    PROPOSAL_DIR.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     proposal = {
         "created_at": datetime.now().astimezone().isoformat(),
-        "project": project,
+        "project": str(project_path),
         "problem": problem,
         "explanation": explanation,
         "files": files,
+        "file_hashes": file_hashes,
         "proposed_changes": proposed_changes,
         "status": "pending",
     }
 
-    proposal_path = (
-        PROPOSAL_DIR /
-        f"proposal_{timestamp}.json"
-    )
+    proposal_path = PROPOSAL_DIR / f"proposal_{timestamp}.json"
 
     try:
         proposal_path.write_text(
-            json.dumps(
-                proposal,
-                indent=2,
-                ensure_ascii=False,
-            ),
+            json.dumps(proposal, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-
         return {
             "success": True,
             "proposal_id": timestamp,
             "path": str(proposal_path),
             "status": "pending",
-            "message": (
-                "Fix proposal created. "
-                "No source files were modified."
-            ),
+            "message": "Fix proposal created. No source files were modified.",
         }
-
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
-
+        return {"success": False, "error": str(e)}
