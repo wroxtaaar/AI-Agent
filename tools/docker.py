@@ -40,6 +40,33 @@ def list_containers() -> dict:
     ])
 
 
+def inspect_container(container: str) -> dict:
+    """Inspect Docker container configuration and current state."""
+    if not container or not container.strip():
+        return {"success": False, "error": "Container name is required."}
+
+    return _run_docker([
+        "inspect",
+        "--format",
+        "Name={{.Name}}\nImage={{.Config.Image}}\nStatus={{.State.Status}}\nStartedAt={{.State.StartedAt}}\nRestartCount={{.RestartCount}}",
+        container.strip(),
+    ])
+
+
+def get_container_stats(container: str) -> dict:
+    """Read a one-shot Docker resource snapshot without streaming."""
+    if not container or not container.strip():
+        return {"success": False, "error": "Container name is required."}
+
+    return _run_docker([
+        "stats",
+        "--no-stream",
+        "--format",
+        "table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.MemPerc}}\\t{{.NetIO}}\\t{{.BlockIO}}",
+        container.strip(),
+    ])
+
+
 def get_container_logs(container: str, lines: int = 100) -> dict:
     """Read recent logs from a Docker container."""
 
