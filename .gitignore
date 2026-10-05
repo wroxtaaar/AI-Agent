@@ -2,3 +2,8 @@
 .env
 __pycache__/
 *.pyc
+# Agent runtime data
+agent_memory.db
+agent_trace.log
+backups/
+proposals/
