@@ -88,17 +88,30 @@ def build_diagnostic_snapshot(
         project_result.get("git", {}).get("diff_stat", ""),
     ]
 
-    if container.strip():
-        container_result = investigate_container(container.strip(), lines=log_lines)
-        if container_result.get("recent_logs"):
-            evidence_parts.append(container_result["recent_logs"])
-        if container_result.get("inspection"):
-            evidence_parts.append(container_result["inspection"])
+    names = [container.strip()] if container.strip() else [
+        item["name"]
+        for item in discover_project_containers(project_result["project"]).get("containers", [])
+        if item.get("name")
+    ][:3]
+
+    if names:
+        results = [investigate_container(name, lines=log_lines) for name in names]
+        container_result = {
+            "success": any(item.get("success") for item in results),
+            "containers": results,
+            "auto_discovered": not bool(container.strip()),
+        }
+        for result in results:
+            if result.get("recent_logs"):
+                evidence_parts.append(result["recent_logs"])
+            if result.get("inspection"):
+                evidence_parts.append(result["inspection"])
     else:
         container_result = {
             "success": True,
             "skipped": True,
-            "reason": "No container was supplied; no container state or logs were inspected.",
+            "auto_discovered": not bool(container.strip()),
+            "reason": "No related Docker container was found for this project.",
         }
 
     evidence = "\n".join(str(part) for part in evidence_parts if part)
