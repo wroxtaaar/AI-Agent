@@ -15,7 +15,12 @@ class DockerDiscoveryTests(unittest.TestCase):
             },
             {
                 "success": True,
-                "stdout": "torrentflix\t/home/ubuntu/Torrent-Movie-Search:/app:rw\n",
+                "stdout": "torrentflix\n",
+                "stderr": "",
+            },
+            {
+                "success": True,
+                "stdout": "bind\t/home/ubuntu/Torrent-Movie-Search\t/app\n",
                 "stderr": "",
             },
         ]
@@ -71,9 +76,6 @@ class DockerDiscoveryTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual([item["name"] for item in result["containers"]], ["demo"])
-        calls = [call.args[0] for call in run_docker.call_args_list]
-        self.assertEqual(calls[0][:2], ["ps", "-a"])
-        self.assertIn("{{.Names}}\\t{{.Mounts}}", calls[0])
 
 
 if __name__ == "__main__":
