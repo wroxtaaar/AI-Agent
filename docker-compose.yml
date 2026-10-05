@@ -1,0 +1,39 @@
+services:
+  ai-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_MEMORY_DB: /data/agent_memory.db
+      AGENT_PROPOSAL_DIR: /runtime/proposals
+      AGENT_TRACE_FILE: /runtime/agent_trace.log
+    volumes:
+      # Agent can inspect VPS projects without exposing them to the image.
+      # Keep this read-only until a dedicated host-side edit executor exists.
+      - ${HOME}:/workspace:ro
+      # Docker CLI access is required by the Docker inspection tools.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - agent-data:/data
+      - agent-runtime:/runtime
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import model, agent; print('agent import ok')"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  agent-data:
+  agent-runtime:
