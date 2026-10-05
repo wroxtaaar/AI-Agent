@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: ai-agent
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
     env_file:
       - .env
     environment:
@@ -12,9 +15,9 @@ services:
       AGENT_PROPOSAL_DIR: /runtime/proposals
       AGENT_TRACE_FILE: /runtime/agent_trace.log
     volumes:
-      # Agent can inspect VPS projects without exposing them to the image.
-      # Keep this read-only until a dedicated host-side edit executor exists.
-      - ${HOME}:/workspace:ro
+      # Project source is mounted at /workspace so diagnostics and approved edits
+      # can operate on the VPS filesystem through the existing safety boundary.
+      - ${HOME}:/workspace:rw
       # Docker CLI access is required by the Docker inspection tools.
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-data:/data
@@ -27,7 +30,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import model, agent; print('agent import ok')"
+          "import healthcheck; healthcheck.main()"
         ]
       interval: 30s
       timeout: 10s
