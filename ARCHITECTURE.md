@@ -25,13 +25,24 @@
        Read-only           Approval-gated
           |                   |
           v                   v
-       Inspect             Propose/Act
-                              |
-                              v
-                          Verify
-                              |
-                              v
-                            Report
+   Investigate/Inspect      Propose/Act
+          |                   |
+          +--------+----------+
+                   v
+                Verify
+                   |
+                   v
+                 Report
+
+## Investigation layer
+
+The Phase 2 investigation tools are bounded orchestration helpers built from existing read-only primitives.
+
+`investigate_project(path)` gathers project layout, detected project type, Git status, current branch, and diff summary. It is intended as the first diagnostic call when the project path is already known.
+
+`investigate_container(container)` gathers container state, a one-shot resource snapshot, and recent logs. Log output is redacted before it is returned by the summary.
+
+These tools do not gain any new write capability. They reduce unnecessary multi-call discovery while keeping deeper inspection available when needed.
 
 ## Trust boundaries
 
