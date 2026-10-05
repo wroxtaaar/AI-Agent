@@ -33,6 +33,9 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
+      - name: Build Docker image
+        run: docker build --tag ai-agent:test .
+
   deploy:
     name: Deploy to Oracle VPS
     needs: test
@@ -58,14 +61,45 @@ jobs:
             git fetch origin master
             git merge --ff-only origin/master
 
-            echo "== Installing dependencies =="
-            .venv/bin/python -m pip install -r requirements.txt
-
             echo "== Compiling Python sources =="
             .venv/bin/python -m py_compile agent.py model.py config.py tools/*.py
 
             echo "== Running tests =="
             .venv/bin/python -m unittest discover -s tests -v
+
+            echo "== Checking Docker =="
+            docker version
+            docker compose version
+
+            echo "== Building and starting AI Agent =="
+            docker compose up -d --build --remove-orphans
+
+            echo "== Waiting for container health =="
+            healthy=false
+            for attempt in $(seq 1 12); do
+              status="$(docker inspect --format '{{.State.Health.Status}}' ai-agent 2>/dev/null || true)"
+              echo "Health attempt $attempt: ${status:-unknown}"
+
+              if [ "$status" = "healthy" ]; then
+                healthy=true
+                break
+              fi
+
+              if [ "$status" = "unhealthy" ]; then
+                docker compose logs --tail=100 ai-agent || true
+                exit 1
+              fi
+
+              sleep 5
+            done
+
+            if [ "$healthy" != "true" ]; then
+              docker compose logs --tail=100 ai-agent || true
+              exit 1
+            fi
+
+            echo "== Container status =="
+            docker compose ps
 
             echo "== Deployment complete =="
             git log -1 --oneline
