@@ -1,4 +1,9 @@
-from tools.docker import get_container_logs, get_container_stats, inspect_container
+from tools.docker import (
+    find_containers_for_project,
+    get_container_logs,
+    get_container_stats,
+    inspect_container,
+)
 from tools.git import git_branch, git_diff, git_status
 from tools.project import inspect_project
 from tools.safety import redact_text
@@ -38,6 +43,11 @@ def investigate_project(path: str = ".") -> dict:
             "Sensitive credential files remain unavailable through the file tools.",
         ],
     }
+
+
+def discover_project_containers(path: str) -> dict:
+    """Find Docker containers related to a project without modifying anything."""
+    return find_containers_for_project(path)
 
 
 def investigate_container(container: str, lines: int = 80) -> dict:
