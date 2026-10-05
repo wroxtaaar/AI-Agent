@@ -12,7 +12,7 @@ The intended workflow is:
 
 1. Investigate — gather a focused, read-only snapshot of the relevant project or service.
 2. Inspect — read only the additional files/evidence needed.
-3. Diagnose — reason about the evidence.
+3. Diagnose — classify failure signals and reason about the evidence.
 4. Propose — create an exact coding proposal containing the intended old/new text.
 5. Approve — a human explicitly approves the proposal.
 6. Apply — the local executor applies only the exact stored edit.
@@ -28,6 +28,8 @@ Already-approved proposal requests are routed locally so Gemini cannot reinterpr
 - Secret-filtered text-file reading
 - Project structure detection
 - Focused project investigation: layout, project type, Git status/branch/diff
+- Bounded diagnostic evidence snapshots
+- Failure-signal classification for common runtime/build failures
 - Source-file discovery
 - Git status, branch, log, and diff
 - Docker container listing, logs, inspect, and non-streaming stats
@@ -37,6 +39,58 @@ Already-approved proposal requests are routed locally so Gemini cannot reinterpr
 - Exact proposal-gated source edits
 - Timestamped backups
 - Python syntax verification
+
+## Phase 3 diagnostic engine
+
+The build_diagnostic_snapshot tool is the Phase 3 read-only evidence layer.
+
+It combines:
+
+- the reported problem
+- project layout and project type
+- Git status/branch/diff summary
+- optional Docker container state
+- optional recent container logs
+- secret redaction
+- common failure-signature classification
+
+The classifier recognizes signals such as:
+
+- HTTP 500/502/503/504
+- connection refused/timeouts
+- tracebacks
+- missing Python/Node modules
+- syntax/import errors
+- database errors
+- port conflicts
+- permission errors
+- health-check failures
+- out-of-memory conditions
+- disk-full conditions
+
+These are signals, not automatic diagnoses. Gemini must confirm the failure path with targeted evidence before proposing a source change.
+
+A typical diagnostic request is:
+
+    You: Torrent Studio is returning 502 errors. Diagnose it.
+
+The intended flow is:
+
+    Reported problem
+        ↓
+    Diagnostic evidence snapshot
+        ↓
+    Failure signals
+        ↓
+    Targeted source/config/log inspection
+        ↓
+    Confirmed cause
+        ↓
+    Exact fix proposal
+        ↓
+    STOP for human approval
+
+Diagnosis does not restart containers, edit files, deploy code, or otherwise modify service state.
 
 ## Investigation layer
 
@@ -102,7 +156,7 @@ Syntax/import smoke check:
 
 ### Read-only tools
 
-Inspection tools do not intentionally modify project state.
+Inspection and diagnostic tools do not intentionally modify project state.
 
 ### Proposal-gated edits
 
@@ -126,7 +180,7 @@ Human confirmation is required before:
 
 ### Secrets
 
-Known credential/key files are blocked. Text returned from normal files is filtered for common API-key, token, password, secret, bearer-token, and private-key patterns. Focused Docker investigation also redacts its returned logs.
+Known credential/key files are blocked. Text returned from normal files is filtered for common API-key, token, password, secret, bearer-token, and private-key patterns. Focused Docker investigation and diagnostic evidence also redact returned logs.
 
 ## Project direction
 
@@ -136,8 +190,8 @@ The long-term goal is a practical VPS software/DevOps engineer that can investig
 
 The repository has two workflows:
 
-- **Agent Tests** — runs automatically on pushes and pull requests to `master`.
-- **Deploy AI Agent** — runs manually from GitHub Actions and deploys to the Oracle VPS only after the same test suite passes.
+- Agent Tests — runs automatically on pushes and pull requests to master.
+- Deploy AI Agent — runs automatically on pushes to master after the test job passes.
 
 Configure these GitHub Actions secrets:
 
@@ -154,15 +208,6 @@ It updates the VPS with:
     git fetch origin master
     git merge --ff-only origin/master
 
-This preserves untracked files on the VPS. It does not overwrite `.env`, runtime data, or unrelated untracked files.
+This preserves untracked files on the VPS. It does not overwrite .env, runtime data, or unrelated untracked files.
 
 The deployment then updates the Python virtual environment, compiles the source, and runs the full test suite. A failed test stops the deployment.
-
-To deploy manually:
-
-1. Open the repository's **Actions** tab.
-2. Select **Deploy AI Agent**.
-3. Click **Run workflow**.
-4. Select `master`.
-5. Wait for the Test job to pass.
-6. The Deploy job then connects to the VPS and updates `~/ai-agent`.
