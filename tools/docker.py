@@ -40,6 +40,51 @@ def list_containers() -> dict:
     ])
 
 
+def find_containers_for_project(project_path: str) -> dict:
+    """Find Docker containers whose mounts reference the supplied project path.
+
+    This is read-only and intentionally conservative: a container is considered
+    related when Docker reports a bind mount whose source contains the project
+    path, or when a mount source ends with the project directory name.
+    """
+    from pathlib import Path
+
+    if not isinstance(project_path, str) or not project_path.strip():
+        return {"success": False, "containers": [], "error": "Project path is required."}
+
+    project = Path(project_path).expanduser().resolve()
+    project_name = project.name
+
+    result = _run_docker([
+        "ps",
+        "-a",
+        "--format",
+        "{{.Names}}\\t{{.Mounts}}",
+    ])
+    if not result.get("success"):
+        return {"success": False, "containers": [], "error": result.get("stderr") or result.get("error", "Docker inspection failed.")}
+
+    matches = []
+    for line in result.get("stdout", "").splitlines():
+        if "\\t" not in line:
+            continue
+        name, mounts = line.split("\\t", 1)
+        mount_sources = [item.split(":", 1)[0] for item in mounts.split(",") if item]
+        if any(
+            source == str(project)
+            or source.startswith(str(project) + "/")
+            or source.endswith("/" + project_name)
+            for source in mount_sources
+        ):
+            matches.append({"name": name, "mounts": mount_sources})
+
+    return {
+        "success": True,
+        "project": str(project),
+        "containers": matches,
+    }
+
+
 def inspect_container(container: str) -> dict:
     """Inspect Docker container configuration and current state."""
     if not container or not container.strip():
