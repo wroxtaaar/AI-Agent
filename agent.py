@@ -1,5 +1,3 @@
-from google.genai import types
-
 from model import create_chat, send_message
 
 from tools.system import get_system_info
@@ -9,7 +7,6 @@ from tools.docker import list_containers, get_container_logs
 from tools.git import git_status, git_branch, git_log, git_diff
 from tools.memory import save_memory, search_memory, list_memories
 from tools.actions import restart_container
-from tools.editor import replace_in_file
 from tools.project import inspect_project
 from tools.tracing import trace_tool
 from tools.coding import find_source_files
@@ -44,7 +41,6 @@ TOOLS = [
     trace_tool(list_memories),
 
     trace_tool(restart_container),
-    trace_tool(replace_in_file),
 
     trace_tool(inspect_project),
     trace_tool(find_source_files),
@@ -57,17 +53,15 @@ TOOLS = [
 ]
 
 
-
-
 def main():
     chat = create_chat(TOOLS)
 
     print("AI Agent started.")
-    print("Available tools:")
+    print("Model tools:")
     print("  - get_system_info")
     print("  - list_directory")
-    print("  - read_text_file")
-    print("  - run_command")
+    print("  - read_text_file [SECRET FILTERED]")
+    print("  - run_command [READ-ONLY]")
     print("  - list_containers")
     print("  - get_container_logs")
     print("  - git_status")
@@ -78,13 +72,15 @@ def main():
     print("  - search_memory")
     print("  - list_memories")
     print("  - restart_container [APPROVAL REQUIRED]")
-    print("  - replace_in_file [APPROVAL REQUIRED]")
     print("  - inspect_project")
     print("  - find_source_files")
+    print("  - detect_project_type")
+    print("  - verify_python_project [APPROVAL REQUIRED]")
     print("  - create_fix_proposal")
     print("  - show_proposal")
-    print("  - approve_proposal [APPROVAL REQUIRED]")
     print("  - create_edit_from_proposal [APPROVAL REQUIRED]")
+    print()
+    print("Human-only proposal approval: use tools.proposal_executor.approve_proposal")
     print("Type 'exit' to quit.\n")
 
     while True:
