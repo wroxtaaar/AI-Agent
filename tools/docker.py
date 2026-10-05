@@ -81,50 +81,76 @@ def _resolve_host_project_path(project: Path) -> tuple[Path | None, dict]:
 
 
 def find_containers_for_project(project_path: str) -> dict:
-    """Find Docker containers whose mounts reference the supplied project path."""
+    """Find Docker containers whose bind mounts reference the supplied project path."""
     if not isinstance(project_path, str) or not project_path.strip():
         return {"success": False, "containers": [], "error": "Project path is required."}
 
     project = Path(project_path).expanduser().resolve()
+    workspace = Path("/workspace").resolve()
     project_name = project.name
 
     host_project, translation = _resolve_host_project_path(project)
-    if project.is_relative_to(Path("/workspace")) and host_project is None and not translation.get("translated"):
+    if project.is_relative_to(workspace) and host_project is None and not translation.get("translated"):
         return {
             "success": False,
             "project": str(project),
             "host_project": None,
             "translation": translation,
             "containers": [],
-            "error": translation.get("error", "Unable to translate /workspace project path to the Docker host path."),
+            "error": translation.get(
+                "error",
+                "Unable to translate /workspace project path to the Docker host path.",
+            ),
         }
+
     match_project = host_project if host_project is not None else project
 
-    result = _run_docker([
+    listed = _run_docker([
         "ps",
         "-a",
         "--format",
-        "{{.Names}}\t{{.Mounts}}",
+        "{{.Names}}",
     ])
-    if not result.get("success"):
+    if not listed.get("success"):
         return {
             "success": False,
+            "project": str(project),
+            "host_project": str(host_project) if host_project else None,
+            "translation": translation,
             "containers": [],
-            "error": result.get("stderr")
-            or result.get("error", "Docker inspection failed."),
+            "error": listed.get("stderr")
+            or listed.get("error", "Docker container listing failed."),
         }
 
     matches = []
-    for line in result.get("stdout", "").splitlines():
-        if "\t" not in line:
+    inspect_failures = []
+
+    for name in [line.strip() for line in listed.get("stdout", "").splitlines() if line.strip()]:
+        inspected = _run_docker([
+            "inspect",
+            "--format",
+            '{{range .Mounts}}{{.Type}}\\t{{.Source}}\\t{{.Destination}}{{"\\n"}}{{end}}',
+            name,
+        ])
+        if not inspected.get("success"):
+            inspect_failures.append(name)
             continue
-        name, mounts = line.split("\t", 1)
-        mount_sources = [
-            item.split(":", 1)[0] for item in mounts.split(",") if item
-        ]
+
+        mount_sources = []
+        for line in inspected.get("stdout", "").splitlines():
+            parts = line.split("\\t", 2)
+            if len(parts) != 3:
+                continue
+            mount_type, source, destination = parts
+            if mount_type != "bind":
+                continue
+            mount_sources.append(source)
+
         if any(
             source == str(match_project)
             or source.startswith(str(match_project) + "/")
+            or source == str(project)
+            or source.startswith(str(project) + "/")
             or source.endswith("/" + project_name)
             for source in mount_sources
         ):
@@ -136,7 +162,10 @@ def find_containers_for_project(project_path: str) -> dict:
         "host_project": str(host_project) if host_project else None,
         "translation": translation,
         "containers": matches,
+        "inspect_failures": inspect_failures,
     }
+
+
 def inspect_container(container: str) -> dict:
     """Inspect Docker container configuration and current state."""
     if not container or not container.strip():
