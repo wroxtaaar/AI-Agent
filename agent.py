@@ -9,6 +9,7 @@ from tools.docker import (
     inspect_container,
     get_container_stats,
 )
+from tools.investigation import investigate_project, investigate_container
 from tools.git import git_status, git_branch, git_log, git_diff
 from tools.memory import save_memory, search_memory, list_memories
 from tools.actions import restart_container
@@ -35,11 +36,13 @@ TOOLS = [
     trace_tool(get_container_logs),
     trace_tool(inspect_container),
     trace_tool(get_container_stats),
+    trace_tool(investigate_container),
 
     trace_tool(git_status),
     trace_tool(git_branch),
     trace_tool(git_log),
     trace_tool(git_diff),
+    trace_tool(investigate_project),
 
     trace_tool(save_memory),
     trace_tool(search_memory),
@@ -126,10 +129,12 @@ def main():
     print("  - get_container_logs")
     print("  - inspect_container")
     print("  - get_container_stats")
+    print("  - investigate_container [READ-ONLY SUMMARY]")
     print("  - git_status")
     print("  - git_branch")
     print("  - git_log")
     print("  - git_diff")
+    print("  - investigate_project [READ-ONLY SUMMARY]")
     print("  - save_memory")
     print("  - search_memory")
     print("  - list_memories")
