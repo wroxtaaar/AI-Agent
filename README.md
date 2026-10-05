@@ -39,6 +39,7 @@ Already-approved proposal requests are routed locally so Gemini cannot reinterpr
 - Exact proposal-gated source edits
 - Timestamped backups
 - Python syntax verification
+- Docker Compose packaging and deployment
 
 ## Phase 3 diagnostic engine
 
@@ -91,6 +92,49 @@ The intended flow is:
     STOP for human approval
 
 Diagnosis does not restart containers, edit files, deploy code, or otherwise modify service state.
+
+## Docker deployment
+
+The agent can now run as a Docker Compose service.
+
+Files:
+
+    Dockerfile
+    docker-compose.yml
+    .dockerignore
+    healthcheck.py
+
+Persistent agent state is stored in Docker volumes:
+
+    agent-data
+    agent-runtime
+
+The Compose service mounts the VPS home directory at:
+
+    /workspace
+
+This lets the agent inspect and, after its existing approval checks, edit VPS projects using paths such as:
+
+    /workspace/Torrent-Movie-Search
+    /workspace/FinanceSMSTracker2
+
+The container also has access to the host Docker socket because the agent's Docker tools need to inspect and restart containers. Docker documents that access to the daemon grants highly privileged control of the host, so this container should be treated as a trusted administrative service, not an untrusted application. citeturn0search0turn0search2
+
+The container filesystem itself is read-only; writable state is kept in dedicated volumes and the explicitly mounted VPS workspace.
+
+Build/run manually on the VPS:
+
+    cd ~/ai-agent
+    docker compose up -d --build
+
+Check status:
+
+    docker compose ps
+    docker compose logs --tail=100 ai-agent
+
+Open an interactive agent session:
+
+    docker exec -it ai-agent python agent.py
 
 ## Investigation layer
 
@@ -193,6 +237,15 @@ The repository has two workflows:
 - Agent Tests — runs automatically on pushes and pull requests to master.
 - Deploy AI Agent — runs automatically on pushes to master after the test job passes.
 
+The deployment now also:
+
+1. Builds the Docker image in GitHub Actions.
+2. Pulls the latest master commit on the Oracle VPS.
+3. Runs the VPS test suite.
+4. Runs Docker Compose with a fresh build.
+5. Waits for the agent container health check.
+6. Fails the deployment if the container becomes unhealthy.
+
 Configure these GitHub Actions secrets:
 
     VPS_HOST
@@ -209,5 +262,3 @@ It updates the VPS with:
     git merge --ff-only origin/master
 
 This preserves untracked files on the VPS. It does not overwrite .env, runtime data, or unrelated untracked files.
-
-The deployment then updates the Python virtual environment, compiles the source, and runs the full test suite. A failed test stops the deployment.
