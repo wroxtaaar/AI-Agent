@@ -131,3 +131,38 @@ Known credential/key files are blocked. Text returned from normal files is filte
 ## Project direction
 
 The long-term goal is a practical VPS software/DevOps engineer that can investigate failures, understand projects, propose safe changes, verify them, and eventually support controlled deployment workflows without giving the language model unrestricted server access.
+
+## GitHub Actions deployment
+
+The repository has two workflows:
+
+- **Agent Tests** — runs automatically on pushes and pull requests to `master`.
+- **Deploy AI Agent** — runs manually from GitHub Actions and deploys to the Oracle VPS only after the same test suite passes.
+
+Configure these GitHub Actions secrets:
+
+    VPS_HOST
+    VPS_USER
+    VPS_SSH_KEY
+
+The deployment expects the repository at:
+
+    ~/ai-agent
+
+It updates the VPS with:
+
+    git fetch origin master
+    git merge --ff-only origin/master
+
+This preserves untracked files on the VPS. It does not overwrite `.env`, runtime data, or unrelated untracked files.
+
+The deployment then updates the Python virtual environment, compiles the source, and runs the full test suite. A failed test stops the deployment.
+
+To deploy manually:
+
+1. Open the repository's **Actions** tab.
+2. Select **Deploy AI Agent**.
+3. Click **Run workflow**.
+4. Select `master`.
+5. Wait for the Test job to pass.
+6. The Deploy job then connects to the VPS and updates `~/ai-agent`.
