@@ -41,6 +41,13 @@ def show_proposal(proposal_id: str) -> dict:
     for file_entry in proposal.get("files", []):
         print(f"  - {file_entry}")
     print(f"\nProposed changes:\n{proposal.get('proposed_changes')}")
+
+    edits = proposal.get("edits")
+    if edits:
+        print("\nExact edits:")
+        for edit in edits:
+            print(f"  - {edit.get('file')}")
+
     print("=" * 70)
 
     return {
@@ -101,7 +108,7 @@ def create_edit_from_proposal(
     old_text: str,
     new_text: str,
 ) -> dict:
-    """Apply an approved proposal only if its target and snapshot still match."""
+    """Apply an approved proposal only when target, snapshot, and exact edit match."""
 
     result = load_proposal(proposal_id)
     if not result["success"]:
@@ -130,29 +137,27 @@ def create_edit_from_proposal(
     if not isinstance(approved_files, list):
         return {"success": False, "error": "Proposal contains an invalid 'files' list."}
 
-    approved_targets = set()
+    approved_entry = None
     for file_entry in approved_files:
         if not isinstance(file_entry, str):
             continue
         try:
             approved_target = (project / file_entry).resolve()
             approved_target.relative_to(project)
-            approved_targets.add(approved_target)
         except (ValueError, TypeError):
             continue
 
-    if target not in approved_targets:
+        if approved_target == target:
+            approved_entry = file_entry
+            break
+
+    if approved_entry is None:
         return {
             "success": False,
             "error": "Edit target is not listed in the approved proposal.",
         }
 
-    # New proposals record hashes. Older proposals do not, so they remain
-    # usable, but new proposals get stale-file protection.
-    expected_hash = proposal.get("file_hashes", {}).get(
-        next((f for f in approved_files if (project / f).resolve() == target), ""),
-    )
-
+    expected_hash = proposal.get("file_hashes", {}).get(approved_entry)
     if expected_hash:
         actual_hash = _current_sha256(target)
         if actual_hash != expected_hash:
@@ -161,6 +166,26 @@ def create_edit_from_proposal(
                 "error": "The target file changed after the proposal was created. Create a new proposal.",
                 "expected_hash": expected_hash,
                 "actual_hash": actual_hash,
+            }
+
+    exact_edits = proposal.get("edits")
+    if exact_edits:
+        matching = [
+            edit for edit in exact_edits
+            if isinstance(edit, dict) and edit.get("file") == approved_entry
+        ]
+
+        if len(matching) != 1:
+            return {
+                "success": False,
+                "error": "Approved proposal does not contain exactly one edit for this file.",
+            }
+
+        edit = matching[0]
+        if old_text != edit.get("old_text") or new_text != edit.get("new_text"):
+            return {
+                "success": False,
+                "error": "The requested edit does not exactly match the approved proposal.",
             }
 
     return replace_in_file(
