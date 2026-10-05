@@ -3,7 +3,12 @@ from model import create_chat, send_message
 from tools.system import get_system_info
 from tools.filesystem import list_directory, read_text_file
 from tools.shell import run_command
-from tools.docker import list_containers, get_container_logs
+from tools.docker import (
+    list_containers,
+    get_container_logs,
+    inspect_container,
+    get_container_stats,
+)
 from tools.git import git_status, git_branch, git_log, git_diff
 from tools.memory import save_memory, search_memory, list_memories
 from tools.actions import restart_container
@@ -17,10 +22,7 @@ from tools.proposal_executor import (
     create_edit_from_proposal,
     apply_approved_proposal,
 )
-from tools.verification import (
-    detect_project_type,
-    verify_python_project,
-)
+from tools.verification import detect_project_type, verify_python_project
 
 
 TOOLS = [
@@ -31,6 +33,8 @@ TOOLS = [
 
     trace_tool(list_containers),
     trace_tool(get_container_logs),
+    trace_tool(inspect_container),
+    trace_tool(get_container_stats),
 
     trace_tool(git_status),
     trace_tool(git_branch),
@@ -84,9 +88,7 @@ def _run_approved_proposal_workflow(user_input: str) -> bool:
         )
         return True
 
-    print(
-        f"\nAI: Approved proposal {proposal_id} was applied successfully."
-    )
+    print(f"\nAI: Approved proposal {proposal_id} was applied successfully.")
 
     if result.get("verification_required"):
         project = result.get("project")
@@ -122,6 +124,8 @@ def main():
     print("  - run_command [READ-ONLY]")
     print("  - list_containers")
     print("  - get_container_logs")
+    print("  - inspect_container")
+    print("  - get_container_stats")
     print("  - git_status")
     print("  - git_branch")
     print("  - git_log")
@@ -162,6 +166,8 @@ def main():
 
             print(f"\nAI: {response.text}\n")
 
+        except KeyboardInterrupt:
+            print("\nInterrupted. Type 'exit' to quit.\n")
         except Exception as e:
             print(f"\nError: {e}\n")
 
