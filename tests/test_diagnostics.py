@@ -65,7 +65,7 @@ class DiagnosticTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["project"]["project"], "/tmp/demo")
-        self.assertEqual(result["container"]["container"], "demo")
+        self.assertEqual(result["container"]["containers"][0]["container"], "demo")
         signatures = {item["signature"] for item in result["failure_signals"]["signals"]}
         self.assertIn("http_502", signatures)
         self.assertIn("connection_refused", signatures)
