@@ -24,13 +24,13 @@ SENSITIVE_PARTS = {".ssh", ".aws", ".gnupg"}
 SECRET_PATTERNS = [
     (
         re.compile(
-            r"(?im)^([ \\t]*(?:export[ \\t]+)?[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|PASSWORD|SECRET|PRIVATE[_-]?KEY|CLIENT[_-]?SECRET)[A-Z0-9_]*[ \\t]*=[ \\t]*)(.+)$"
+            r"(?im)^([ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|PASSWORD|SECRET|PRIVATE[_-]?KEY|CLIENT[_-]?SECRET)[A-Z0-9_]*[ \t]*=[ \t]*)(.+)$"
         ),
         r"\1[REDACTED]",
     ),
     (
-        re.compile(r"(?i)(Bearer\\s+)[A-Za-z0-9._~+/=-]+"),
-        r"\\1[REDACTED]",
+        re.compile(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]+"),
+        r"\1[REDACTED]",
     ),
     (
         re.compile(
